@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>番号抽選会</title>
+<style>
+  :root{
+    --bg: #0b0d10;
+    --panel: #16191d;
+    --panel-border: #2a2f36;
+    --led-bg: #1a0505;
+    --led-off: #3a1010;
+    --led-on: #ff3b1f;
+    --led-glow: #ff6a3d;
+    --accent: #ff9800;
+    --text: #e8e8e8;
+    --muted: #8a8f98;
+    --hazure: #6b7684;
+  }
+  *{ box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html,body{
+    margin:0; padding:0; height:100%;
+    background: radial-gradient(ellipse at top, #1b1f24 0%, #0b0d10 70%);
+    color: var(--text);
+    font-family: "Segoe UI", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+    touch-action: manipulation;
+    overscroll-behavior-y: contain;
+  }
+  button, select{ touch-action: manipulation; }
+  .app{
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 24px 16px 60px;
+  }
+  h1{
+    text-align:center;
+    font-size: 1.6rem;
+    letter-spacing: 0.2em;
+    margin: 8px 0 24px;
+    color: var(--accent);
+    text-shadow: 0 0 12px rgba(255,152,0,0.5);
+  }
+  .card{
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 14px;
+    padding: 24px;
+    margin-bottom: 20px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+  }
+  .mode-toggle{
+    display:flex;
+    gap:8px;
+    margin-bottom: 20px;
+  }
+  .mode-toggle button{
+    flex:1;
+    padding: 14px 10px;
+    min-height: 44px;
+    border-radius: 8px;
+    border: 1px solid var(--panel-border);
+    background: #1e2227;
+    color: var(--muted);
+    cursor:pointer;
+    font-size: 0.95rem;
+    transition: all .15s;
+  }
+  .mode-toggle button.active{
+    background: rgba(255,152,0,0.15);
+    border-color: var(--accent);
+    color: var(--accent);
+    font-weight:bold;
+  }
+  label.field-label{
+    display:block;
+    margin-bottom:6px;
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+  textarea, input[type=number], input[type=text]{
+    width:100%;
+    background: #0f1114;
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 12px 12px;
+    font-size: 16px; /* iOSでフォーカス時に自動ズームさせないため */
+    font-family: inherit;
+  }
+  textarea{ min-height: 160px; resize: vertical; }
+  .range-row{ display:flex; gap:16px; align-items:flex-end; }
+  .range-row > div{ flex:1; }
+  .panel{ display:none; }
+  .panel.active{ display:block; }
+  .hint{ color: var(--muted); font-size: 0.8rem; margin-top: 6px; }
+  .primary-btn{
+    display:block;
+    width:100%;
+    min-height: 52px;
+    margin-top: 20px;
+    padding: 14px;
+    border-radius: 10px;
+    border: none;
+    background: linear-gradient(180deg, #ff9800, #e65100);
+    color: #fff;
+    font-size: 1.1rem;
+    font-weight: bold;
+    letter-spacing: 0.1em;
+    cursor:pointer;
+    -webkit-user-select:none; user-select:none;
+    box-shadow: 0 4px 14px rgba(255,152,0,0.35);
+  }
+  .primary-btn:disabled{
+    background: #444;
+    box-shadow:none;
+    cursor:not-allowed;
+    color: #888;
+  }
+  .primary-btn:active:not(:disabled){ transform: translateY(1px); }
+  .sub-btn{
+    display:inline-block;
+    padding: 10px 16px;
+    min-height: 44px;
+    border-radius: 8px;
+    border: 1px solid var(--panel-border);
+    background: #1e2227;
+    color: var(--muted);
+    cursor:pointer;
+    font-size: 0.9rem;
+    -webkit-user-select:none; user-select:none;
+  }
+  .small-btn{
+    padding: 10px 14px;
+    min-height: 44px;
+    border-radius: 8px;
+    border: 1px solid var(--panel-border);
+    background: #1e2227;
+    color: var(--accent);
+    cursor:pointer;
+    font-size: 0.85rem;
+    white-space: nowrap;
+    -webkit-user-select:none; user-select:none;
+  }
+
+  #drawScreen{ display:none; }
+  .status-row{
+    display:flex;
+    justify-content: space-between;
+    align-items:center;
+    margin-bottom: 18px;
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+  .status-row b{ color: var(--accent); }
+
+  .led-display{
+    display:flex;
+    justify-content:center;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 30px 10px;
+    background: var(--led-bg);
+    border-radius: 12px;
+    border: 4px solid #000;
+    box-shadow: inset 0 0 30px rgba(0,0,0,0.8);
+    margin-bottom: 14px;
+  }
+  .digit{
+    width: clamp(38px, 11vw, 56px);
+    height: clamp(64px, 18vw, 92px);
+    background: #100303;
+    border-radius: 6px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-family: "Consolas", "Courier New", monospace;
+    font-size: clamp(1.8rem, 6.5vw, 3.4rem);
+    font-weight: bold;
+    color: var(--led-off);
+    text-shadow: none;
+  }
+  .digit.lit{
+    color: var(--led-on);
+    text-shadow: 0 0 8px var(--led-glow), 0 0 20px var(--led-glow), 0 0 2px #fff;
+  }
+
+  .result-panel{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding: 40px 10px;
+    background: var(--led-bg);
+    border-radius: 12px;
+    border: 4px solid #000;
+    box-shadow: inset 0 0 30px rgba(0,0,0,0.8);
+    margin-bottom: 14px;
+    min-height: 92px;
+  }
+  .result-text{
+    font-size: clamp(1.6rem, 8vw, 2.6rem);
+    font-weight: bold;
+    letter-spacing: 0.2em;
+    color: var(--led-off);
+    text-align: center;
+  }
+  .result-text.atari{
+    color: var(--led-on);
+    text-shadow: 0 0 10px var(--led-glow), 0 0 24px var(--led-glow), 0 0 3px #fff;
+  }
+  .result-text.hazure{
+    color: var(--hazure);
+    text-shadow: 0 0 6px rgba(107,118,132,0.4);
+  }
+
+  .current-name{
+    text-align:center;
+    font-size: 1.3rem;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+  .current-name b{
+    color: var(--text);
+    font-size: 1.6rem;
+  }
+
+  .draw-controls{
+    display:flex;
+    gap: 12px;
+  }
+  .draw-controls .primary-btn{ margin-top:0; }
+
+  .history{
+    margin-top: 24px;
+  }
+  .history h3{
+    color: var(--muted);
+    font-size: 0.9rem;
+    letter-spacing: 0.1em;
+    border-bottom: 1px solid var(--panel-border);
+    padding-bottom: 8px;
+  }
+  .history-list{
+    list-style: none;
+    padding:0;
+    margin: 10px 0 0;
+    display:grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 8px;
+  }
+  .history-list li{
+    background: #0f1114;
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 0.9rem;
+  }
+  .history-list li .num{
+    color: var(--accent);
+    font-weight:bold;
+    margin-right: 6px;
+    font-family: monospace;
+  }
+  .history-list li .order{
+    color: var(--muted);
+    font-size: 0.75rem;
+    margin-right: 4px;
+  }
+  .history-list li .tag{
+    font-weight:bold;
+    margin-left: 6px;
+  }
+  .history-list li .tag.atari{ color: var(--led-on); }
+  .history-list li .tag.hazure{ color: var(--hazure); }
+
+  .footer-actions{
+    display:flex;
+    justify-content: space-between;
+    margin-top: 24px;
+  }
+  .empty-msg{
+    text-align:center;
+    color: var(--accent);
+    font-weight:bold;
+    padding: 10px 0;
+  }
+
+  .edit-panel{
+    margin-top: 24px;
+    border-top: 1px solid var(--panel-border);
+    padding-top: 18px;
+  }
+  .edit-panel h3{
+    color: var(--muted);
+    font-size: 0.9rem;
+    letter-spacing: 0.1em;
+    margin: 0 0 12px;
+  }
+  .edit-row{
+    display:flex;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .edit-row input, .edit-row select{
+    flex:1;
+  }
+  select{
+    width:100%;
+    min-height: 44px;
+    background: #0f1114;
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 10px 12px;
+    font-size: 16px;
+    font-family: inherit;
+  }
+
+  @media (max-width: 600px){
+    .card{ padding: 18px; }
+    .range-row{ flex-direction: column; gap: 12px; }
+    .edit-row{ flex-direction: column; }
+    .footer-actions{ flex-direction: column; gap: 10px; }
+    .footer-actions .sub-btn{ width: 100%; text-align:center; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>抽 選 会</h1>
+
+  <div id="setupScreen" class="card">
+    <div class="mode-toggle">
+      <button id="modeNameBtn" class="active">当たり／ハズレ抽選</button>
+      <button id="modeRangeBtn">番号範囲で抽選</button>
+    </div>
+
+    <div id="namePanel" class="panel active">
+      <label class="field-label">当たる確率（％）</label>
+      <input type="number" id="atariProb" value="50" min="0" max="100">
+      <div class="hint">ボタンを押すたびに、この確率で「当たり」か「ハズレ」かを抽選します。</div>
+    </div>
+
+    <div id="rangePanel" class="panel">
+      <label class="field-label">抽選する番号の範囲</label>
+      <div class="range-row">
+        <div>
+          <label class="field-label">開始番号</label>
+          <input type="number" id="rangeFrom" value="1" min="0">
+        </div>
+        <div>
+          <label class="field-label">終了番号</label>
+          <input type="number" id="rangeTo" value="100" min="0">
+        </div>
+      </div>
+      <div class="hint">この範囲の番号から重複なく抽選します。</div>
+    </div>
+
+    <label class="field-label" style="margin-top:16px;">抽選開始から停止までの時間（秒）</label>
+    <input type="number" id="drawDuration" value="0.5" min="0.5" max="10" step="0.5">
+    <div class="hint">ボタンを押してから結果が確定するまでの演出時間です。</div>
+
+    <button class="primary-btn" id="startSetupBtn">この内容で抽選をはじめる</button>
+    <div class="hint" id="setupError" style="color:#ff6a3d; margin-top:10px;"></div>
+  </div>
+
+  <div id="drawScreen">
+    <div class="card">
+      <div class="status-row">
+        <div id="remainingBlock">残り人数: <b id="remainingCount">0</b> 人</div>
+        <div>抽選回数: <b id="drawnCount">0</b> 回目</div>
+      </div>
+
+      <div id="ledDisplay" class="led-display" style="display:none;"></div>
+      <div id="resultPanel" class="result-panel" style="display:none;">
+        <div class="result-text" id="resultText">?</div>
+      </div>
+
+      <div class="draw-controls">
+        <button class="primary-btn" id="drawBtn">抽選する</button>
+      </div>
+      <div class="empty-msg" id="emptyMsg" style="display:none;">全員の抽選が終了しました</div>
+
+      <div class="history">
+        <h3>当選履歴</h3>
+        <ul class="history-list" id="historyList"></ul>
+      </div>
+
+      <div class="edit-panel" id="numberEditPanel">
+        <h3>参加人数が変わったときは</h3>
+        <div class="hint" style="margin-top:-6px; margin-bottom:14px;">抽選の途中でも、番号を追加できます。</div>
+
+        <label class="field-label">番号を追加する（後から参加が増えた場合）</label>
+        <div class="edit-row">
+          <input type="text" id="addNumberInput" placeholder="例: 101,102 や 200-210">
+          <button class="small-btn" id="addNumberBtn">追加する</button>
+        </div>
+        <div class="hint">コンマ区切りや範囲指定でまとめて追加できます。</div>
+      </div>
+
+      <div class="footer-actions">
+        <button class="sub-btn" id="backBtn">設定に戻る</button>
+        <button class="sub-btn" id="restartSameBtn">履歴をリセット</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var modeNameBtn = document.getElementById('modeNameBtn');
+  var modeRangeBtn = document.getElementById('modeRangeBtn');
+  var namePanel = document.getElementById('namePanel');
+  var rangePanel = document.getElementById('rangePanel');
+  var atariProbInput = document.getElementById('atariProb');
+  var drawDurationInput = document.getElementById('drawDuration');
+  var rangeFrom = document.getElementById('rangeFrom');
+  var rangeTo = document.getElementById('rangeTo');
+  var startSetupBtn = document.getElementById('startSetupBtn');
+  var setupError = document.getElementById('setupError');
+
+  var setupScreen = document.getElementById('setupScreen');
+  var drawScreen = document.getElementById('drawScreen');
+  var ledDisplay = document.getElementById('ledDisplay');
+  var resultPanel = document.getElementById('resultPanel');
+  var resultText = document.getElementById('resultText');
+  var drawBtn = document.getElementById('drawBtn');
+  var remainingBlock = document.getElementById('remainingBlock');
+  var remainingCountEl = document.getElementById('remainingCount');
+  var drawnCountEl = document.getElementById('drawnCount');
+  var emptyMsg = document.getElementById('emptyMsg');
+  var historyList = document.getElementById('historyList');
+  var backBtn = document.getElementById('backBtn');
+  var restartSameBtn = document.getElementById('restartSameBtn');
+
+  var numberEditPanel = document.getElementById('numberEditPanel');
+  var addNumberInput = document.getElementById('addNumberInput');
+  var addNumberBtn = document.getElementById('addNumberBtn');
+
+  var mode = 'name'; // 'name' (atari/hazure) | 'range'
+  var digitCount = 2;
+  var atariProb = 50;
+  var drawDurationMs = 500;
+
+  var numberPool = [];  // remaining numbers
+  var fullNumbers = [];
+
+  var history = [];     // {order, type, label, result}
+  var isBusy = false;
+
+  modeNameBtn.addEventListener('click', function(){
+    mode = 'name';
+    modeNameBtn.classList.add('active');
+    modeRangeBtn.classList.remove('active');
+    namePanel.classList.add('active');
+    rangePanel.classList.remove('active');
+    setupError.textContent = '';
+  });
+  modeRangeBtn.addEventListener('click', function(){
+    mode = 'range';
+    modeRangeBtn.classList.add('active');
+    modeNameBtn.classList.remove('active');
+    rangePanel.classList.add('active');
+    namePanel.classList.remove('active');
+    setupError.textContent = '';
+  });
+
+  // ---------- rendering ----------
+
+  function renderDigits(numberStr){
+    ledDisplay.innerHTML = '';
+    var padded = String(numberStr).padStart(digitCount, '0');
+    for(var i = 0; i < padded.length; i++){
+      var d = document.createElement('div');
+      d.className = 'digit lit';
+      d.textContent = padded[i];
+      ledDisplay.appendChild(d);
+    }
+  }
+
+  function renderBlankDigits(){
+    ledDisplay.innerHTML = '';
+    for(var i = 0; i < digitCount; i++){
+      var d = document.createElement('div');
+      d.className = 'digit';
+      d.textContent = '8';
+      ledDisplay.appendChild(d);
+    }
+  }
+
+  function renderResultText(text, cls){
+    resultText.textContent = text;
+    resultText.className = 'result-text' + (cls ? (' ' + cls) : '');
+  }
+
+  function updateStatus(){
+    if(mode === 'name'){
+      remainingBlock.style.display = 'none';
+      drawnCountEl.textContent = history.length;
+      emptyMsg.style.display = 'none';
+      if(!isBusy){
+        drawBtn.disabled = false;
+        drawBtn.textContent = '抽選する';
+      }
+    } else {
+      remainingBlock.style.display = 'block';
+      remainingCountEl.textContent = numberPool.length;
+      drawnCountEl.textContent = history.length;
+      if(numberPool.length === 0){
+        emptyMsg.style.display = 'block';
+        drawBtn.disabled = true;
+        drawBtn.textContent = '抽選終了';
+      } else {
+        emptyMsg.style.display = 'none';
+        if(!isBusy){
+          drawBtn.disabled = false;
+          drawBtn.textContent = '抽選する';
+        }
+      }
+    }
+  }
+
+  function renderHistory(){
+    historyList.innerHTML = '';
+    for(var i = history.length - 1; i >= 0; i--){
+      var h = history[i];
+      var li = document.createElement('li');
+      if(h.type === 'name'){
+        var tagCls = h.result === 'atari' ? 'atari' : 'hazure';
+        var tagLabel = h.result === 'atari' ? '当たり' : 'ハズレ';
+        li.innerHTML = '<span class="order">' + h.order + '回目</span>' +
+                       '<span class="tag ' + tagCls + '">' + tagLabel + '</span>';
+      } else {
+        li.innerHTML = '<span class="order">' + h.order + '.</span>' +
+                       '<span class="num">' + String(h.label).padStart(digitCount,'0') + '</span>';
+      }
+      historyList.appendChild(li);
+    }
+  }
+
+  // ---------- draw flow ----------
+
+  // Runs `renderRandom()` repeatedly with gradually increasing delays (a
+  // deceleration effect), then calls `renderFinal()` once, over roughly
+  // `totalMs` milliseconds total.
+  function runSpinAnimation(totalMs, renderRandom, renderFinal, onDone){
+    var steps = 24;
+    var baseUnit = totalMs / (steps * (steps + 1) / 2);
+    var k = 0;
+    function tick(){
+      k++;
+      if(k < steps){
+        renderRandom();
+        setTimeout(tick, baseUnit * (k + 1));
+      } else {
+        renderFinal();
+        onDone();
+      }
+    }
+    setTimeout(tick, baseUnit);
+  }
+
+  function runNameDraw(){
+    if(isBusy) return;
+    isBusy = true;
+    drawBtn.disabled = true;
+
+    var isAtari = (Math.random() * 100) < atariProb;
+
+    resultPanel.style.display = 'flex';
+    ledDisplay.style.display = 'none';
+    renderResultText('?', '');
+
+    runSpinAnimation(drawDurationMs, function renderRandom(){
+      var show = Math.random() < 0.5 ? '当たり' : 'ハズレ';
+      renderResultText(show, show === '当たり' ? 'atari' : 'hazure');
+    }, function renderFinal(){
+      renderResultText(isAtari ? '当たり' : 'ハズレ', isAtari ? 'atari' : 'hazure');
+    }, function onDone(){
+      history.push({ order: history.length + 1, type: 'name', result: isAtari ? 'atari' : 'hazure' });
+
+      renderHistory();
+      updateStatus();
+      isBusy = false;
+      drawBtn.disabled = false;
+    });
+  }
+
+  function runNumberDraw(){
+    if(numberPool.length === 0 || isBusy) return;
+    isBusy = true;
+    drawBtn.disabled = true;
+
+    resultPanel.style.display = 'none';
+    ledDisplay.style.display = 'flex';
+
+    var winIdx = Math.floor(Math.random() * numberPool.length);
+    var winner = numberPool[winIdx];
+
+    runSpinAnimation(drawDurationMs, function renderRandom(){
+      var idx = Math.floor(Math.random() * numberPool.length);
+      renderDigits(numberPool[idx]);
+    }, function renderFinal(){
+      renderDigits(winner);
+    }, function onDone(){
+      numberPool.splice(winIdx, 1);
+      history.push({ order: history.length + 1, type: 'number', label: winner });
+
+      renderHistory();
+      updateStatus();
+      isBusy = false;
+      if(numberPool.length > 0){
+        drawBtn.disabled = false;
+      }
+    });
+  }
+
+  drawBtn.addEventListener('click', function(){
+    if(mode === 'name'){ runNameDraw(); } else { runNumberDraw(); }
+  });
+
+  // ---------- setup ----------
+
+  function buildNumbersFromRange(){
+    var from = parseInt(rangeFrom.value, 10);
+    var to = parseInt(rangeTo.value, 10);
+    if(isNaN(from) || isNaN(to) || from > to) return null;
+    var nums = [];
+    for(var n = from; n <= to; n++){ nums.push(n); }
+    return nums;
+  }
+
+  startSetupBtn.addEventListener('click', function(){
+    var duration = parseFloat(drawDurationInput.value);
+    if(isNaN(duration) || duration < 0.5 || duration > 10){
+      setupError.textContent = '演出時間は0.5〜10秒の範囲で指定してください。';
+      return;
+    }
+    drawDurationMs = duration * 1000;
+
+    if(mode === 'name'){
+      var prob = parseFloat(atariProbInput.value);
+      if(isNaN(prob) || prob < 0 || prob > 100){
+        setupError.textContent = '当たる確率は0〜100の数値で指定してください。';
+        return;
+      }
+      atariProb = prob;
+      numberPool = []; fullNumbers = [];
+
+      numberEditPanel.style.display = 'none';
+      resultPanel.style.display = 'flex';
+      ledDisplay.style.display = 'none';
+      renderResultText('?', '');
+    } else {
+      var nums = buildNumbersFromRange();
+      if(!nums){
+        setupError.textContent = '開始番号は終了番号以下の数値を指定してください。';
+        return;
+      }
+      fullNumbers = nums.slice();
+      numberPool = nums.slice();
+
+      var maxNum = Math.max.apply(null, nums);
+      digitCount = Math.max(2, String(maxNum).length);
+
+      numberEditPanel.style.display = 'block';
+      resultPanel.style.display = 'none';
+      ledDisplay.style.display = 'flex';
+      renderBlankDigits();
+    }
+    setupError.textContent = '';
+    history = [];
+    isBusy = false;
+    renderHistory();
+    updateStatus();
+
+    restartSameBtn.textContent = mode === 'name' ? '履歴をリセット' : '同じ参加者でやり直す';
+
+    setupScreen.style.display = 'none';
+    drawScreen.style.display = 'block';
+  });
+
+  backBtn.addEventListener('click', function(){
+    drawScreen.style.display = 'none';
+    setupScreen.style.display = 'block';
+  });
+
+  restartSameBtn.addEventListener('click', function(){
+    if(isBusy) return;
+    if(mode === 'name'){
+      resultPanel.style.display = 'flex';
+      renderResultText('?', '');
+    } else {
+      numberPool = fullNumbers.slice();
+      renderBlankDigits();
+    }
+    history = [];
+    renderHistory();
+    updateStatus();
+  });
+
+  // ---------- mid-session edit (number mode only) ----------
+
+  function parseNumberSpec(spec){
+    var result = [];
+    spec.split(',').forEach(function(part){
+      part = part.trim();
+      if(part.length === 0) return;
+      if(part.indexOf('-') > -1){
+        var bounds = part.split('-');
+        var a = parseInt(bounds[0], 10);
+        var b = parseInt(bounds[1], 10);
+        if(!isNaN(a) && !isNaN(b) && a <= b){
+          for(var n = a; n <= b; n++){ result.push(n); }
+        }
+      } else {
+        var v = parseInt(part, 10);
+        if(!isNaN(v)) result.push(v);
+      }
+    });
+    return result;
+  }
+
+  addNumberBtn.addEventListener('click', function(){
+    var nums = parseNumberSpec(addNumberInput.value);
+    if(nums.length === 0) return;
+    nums.forEach(function(n){
+      if(numberPool.indexOf(n) === -1) numberPool.push(n);
+      if(fullNumbers.indexOf(n) === -1) fullNumbers.push(n);
+    });
+    var maxNum = Math.max.apply(null, numberPool.concat(fullNumbers));
+    digitCount = Math.max(digitCount, String(maxNum).length);
+    addNumberInput.value = '';
+    updateStatus();
+  });
+
+  // initial panel visibility
+  numberEditPanel.style.display = 'none';
+
+})();
+</script>
+</body>
+</html>
