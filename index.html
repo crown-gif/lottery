@@ -469,9 +469,15 @@
 
   // ---------- rendering ----------
 
+  function padZero(value, len){
+    var s = String(value);
+    while(s.length < len){ s = '0' + s; }
+    return s;
+  }
+
   function renderDigits(numberStr){
     ledDisplay.innerHTML = '';
-    var padded = String(numberStr).padStart(digitCount, '0');
+    var padded = padZero(numberStr, digitCount);
     for(var i = 0; i < padded.length; i++){
       var d = document.createElement('div');
       d.className = 'digit lit';
@@ -534,7 +540,7 @@
                        '<span class="tag ' + tagCls + '">' + tagLabel + '</span>';
       } else {
         li.innerHTML = '<span class="order">' + h.order + '.</span>' +
-                       '<span class="num">' + String(h.label).padStart(digitCount,'0') + '</span>';
+                       '<span class="num">' + padZero(h.label, digitCount) + '</span>';
       }
       historyList.appendChild(li);
     }
